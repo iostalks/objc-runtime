@@ -188,6 +188,7 @@ const uintptr_t objc_debug_swift_stable_abi_bit = FAST_IS_SWIFT_STABLE;
 * A table of all classes (and metaclasses) which have been allocated
 * with objc_allocateClassPair.
 **********************************************************************/
+// 包含所有 ObjC Cls 包括 meta class
 namespace objc {
 static ExplicitInitDenseSet<Class> allocatedClasses;
 }
@@ -1104,6 +1105,8 @@ public:
                          cls->nameForLogging(), lc.cat->name);
         }
 
+        // key = cls
+        // value = cls list
         auto result = get().try_emplace(cls, lc);
         if (!result.second) {
             result.first->second.append(lc);
@@ -1185,6 +1188,7 @@ fixupMethodList(method_list_t *mlist, bool bundleCopy, bool sort)
     }
 
     // Sort by selector address.
+    // 根据 selector 名字排序
     if (sort) {
         method_t::SortBySELAddress sorter;
         std::stable_sort(mlist->begin(), mlist->end(), sorter);
@@ -1279,12 +1283,12 @@ attachCategories(Class cls, const locstamped_category_t *cats_list, uint32_t cat
 
         method_list_t *mlist = entry.cat->methodsForMeta(isMeta);
         if (mlist) {
-            if (mcount == ATTACH_BUFSIZ) {
+            if (mcount == ATTACH_BUFSIZ) { // 满 64 个，添加
                 prepareMethodLists(cls, mlists, mcount, NO, fromBundle);
                 rw->methods.attachLists(mlists, mcount);
                 mcount = 0;
             }
-            mlists[ATTACH_BUFSIZ - ++mcount] = mlist;
+            mlists[ATTACH_BUFSIZ - ++mcount] = mlist; // 从后往前添加
             fromBundle |= entry.hi->isBundle();
         }
 
@@ -1326,7 +1330,7 @@ attachCategories(Class cls, const locstamped_category_t *cats_list, uint32_t cat
 * Attaches any outstanding categories.
 * Locking: runtimeLock must be held by the caller
 **********************************************************************/
-static void methodizeClass(Class cls, Class previously)
+static void methodizeClass(Class cls, Class previously) // previously = nil
 {
     runtimeLock.assertLocked();
 
@@ -1359,6 +1363,8 @@ static void methodizeClass(Class cls, Class previously)
 
     // Root classes get bonus method implementations if they don't have 
     // them already. These apply before category replacements.
+    // 类在收到第一条消息时，会自动调用 +initialze 方法，如果当前类未实现，会调用它的父类
+    // 在根元类添加 initialize 方法，防止发生方法找不到的 crash
     if (cls->isRootMetaclass()) {
         // root metaclass
         addMethod(cls, @selector(initialize), (IMP)&objc_noop_imp, "", NO);
@@ -1636,7 +1642,7 @@ static void addNamedClass(Class cls, const char *name, Class replacing = nil)
         // secondary meta->nonmeta table.
         addNonMetaClass(cls);
     } else {
-        NXMapInsert(gdb_objc_realized_classes, name, cls);
+        NXMapInsert(gdb_objc_realized_classes, name, cls); // 关联 className 和 cls 的地址
     }
     ASSERT(!(cls->data()->flags & RO_META));
 
@@ -2435,7 +2441,7 @@ static void reconcileInstanceVariables(Class cls, Class supercls, const class_ro
 **********************************************************************/
 static Class realizeClassWithoutSwift(Class cls, Class previously)
 {
-    runtimeLock.assertLocked();
+    runtimeLock.assertLocked(); // 加锁
 
     const class_ro_t *ro;
     class_rw_t *rw;
@@ -2449,8 +2455,11 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
 
     // fixme verify class is not in an un-dlopened part of the shared cache?
 
+    // 编译初始值是 class_ro_t 的 二进制文件中存储的结构是 class_ro_t
     ro = (const class_ro_t *)cls->data();
+    
     if (ro->flags & RO_FUTURE) {
+        // 编译期写入的特殊类，这里忽略
         // This was a future class. rw data is already allocated.
         rw = cls->data();
         ro = cls->data()->ro;
@@ -2463,8 +2472,9 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
         cls->setData(rw);
     }
 
+    // 元类是在编译期就创建的，有 flags 标记
     isMeta = ro->flags & RO_META;
-#if FAST_CACHE_META
+#if FAST_CACHE_META  // 缓存类是否为元类信息
     if (isMeta) cls->cache.setBit(FAST_CACHE_META);
 #endif
     rw->version = isMeta ? 7 : 0;  // old runtime went up to 6
@@ -2472,7 +2482,7 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
 
     // Choose an index for this class.
     // Sets cls->instancesRequireRawIsa if indexes no more indexes are available
-    cls->chooseClassArrayIndex();
+    cls->chooseClassArrayIndex();  // 忽略
 
     if (PrintConnecting) {
         _objc_inform("CLASS: realizing class '%s'%s %p %p #%u %s%s",
@@ -2489,17 +2499,19 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
     //   or that Swift's initializers have already been called.
     //   fixme that assumption will be wrong if we add support
     //   for ObjC subclasses of Swift classes.
+    // 确保其父类已经结构化
     supercls = realizeClassWithoutSwift(remapClass(cls->superclass), nil);
+    // 确保其元类已经结构化
     metacls = realizeClassWithoutSwift(remapClass(cls->ISA()), nil);
 
 #if SUPPORT_NONPOINTER_ISA
     if (isMeta) {
         // Metaclasses do not need any features from non pointer ISA
         // This allows for a faspath for classes in objc_retain/objc_release.
-        cls->setInstancesRequireRawIsa();
+        cls->setInstancesRequireRawIsa();// meta class 指针存储的是纯指针信息
     } else {
         // Disable non-pointer isa for some classes and/or platforms.
-        // Set instancesRequireRawIsa.
+        // Set instancesRequireRawIsa. // 什么是 raw isa，isa 表示真正的指针地址，而不是...
         bool instancesRequireRawIsa = cls->instancesRequireRawIsa();
         bool rawIsaIsInherited = false;
         static bool hackedDispatch = false;
@@ -2511,7 +2523,7 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
         else if (!hackedDispatch  &&  0 == strcmp(ro->name, "OS_object"))
         {
             // hack for libdispatch et al - isa also acts as vtable pointer
-            hackedDispatch = true;
+            hackedDispatch = true; // libdispatch 中的类是纯指针的
             instancesRequireRawIsa = true;
         }
         else if (supercls  &&  supercls->superclass  &&
@@ -2536,8 +2548,11 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
     cls->superclass = supercls;
     cls->initClassIsa(metacls);
 
+//    printf("realize class: %s\n", cls->demangledName());
+    
     // Reconcile instance variable offsets / layout.
     // This may reallocate class_ro_t, updating our ro variable.
+    // 调节实例变量的布局？
     if (supercls  &&  !isMeta) reconcileInstanceVariables(cls, supercls, ro);
 
     // Set fastInstanceSize if it wasn't set already.
@@ -2552,7 +2567,7 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
     }
     
     // Propagate the associated objects forbidden flag from ro or from
-    // the superclass.
+    // the superclass. // 禁止关联对象？
     if ((ro->flags & RO_FORBIDS_ASSOCIATED_OBJECTS) ||
         (supercls && supercls->forbidsAssociatedObjects()))
     {
@@ -2566,7 +2581,8 @@ static Class realizeClassWithoutSwift(Class cls, Class previously)
         addRootClass(cls);
     }
 
-    // Attach categories
+    // 1. 添加 ro 的相关方法到 rw
+    // 2. 添加 Category 的相关方法到 rw
     methodizeClass(cls, previously);
 
     return cls;
@@ -2938,6 +2954,7 @@ void
 map_images(unsigned count, const char * const paths[],
            const struct mach_header * const mhdrs[])
 {
+//    printf("%s, %d", paths, count);
     mutex_locker_t lock(runtimeLock);
     return map_images_nolock(count, paths, mhdrs);
 }
@@ -2951,13 +2968,15 @@ map_images(unsigned count, const char * const paths[],
 **********************************************************************/
 extern bool hasLoadMethods(const headerType *mhdr);
 extern void prepare_load_methods(const headerType *mhdr);
-
+// load_images 调用次数和 map_images 的 count 一致
 void
 load_images(const char *path __unused, const struct mach_header *mh)
 {
     // Return without taking locks if there are no +load methods here.
     if (!hasLoadMethods((const headerType *)mh)) return;
 
+    printf("=loaded: %s\n", path);
+    
     recursive_mutex_locker_t lock(loadMethodLock);
 
     // Discover load methods
@@ -2980,6 +2999,7 @@ load_images(const char *path __unused, const struct mach_header *mh)
 void 
 unmap_image(const char *path __unused, const struct mach_header *mh)
 {
+    printf("unmap_image: %s", path);
     recursive_mutex_locker_t lock(loadMethodLock);
     mutex_locker_t lock2(runtimeLock);
     unmap_image_nolock(mh);
@@ -3111,7 +3131,7 @@ Class readClass(Class cls, bool headerIsBundle, bool headerIsPreoptimized)
         ASSERT(getClassExceptSomeSwift(mangledName));
     } else {
         addNamedClass(cls, mangledName, replacing);
-        addClassTableEntry(cls);
+        addClassTableEntry(cls); // 插入类集合
     }
 
     // for future reference: shared cache never contains MH_BUNDLEs
@@ -3326,7 +3346,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
         // namedClasses
         // Preoptimized classes don't go in this table.
-        // 4/3 is NXMapTable's load factor
+        // 4/3 is NXMapTable's load factor // 存储 class 的负载因子
         int namedClassesSize = 
             (isPreoptimized() ? unoptimizedTotalClasses : totalClasses) * 4 / 3;
         gdb_objc_realized_classes =
@@ -3348,9 +3368,14 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             for (i = 0; i < count; i++) {
                 const char *name = sel_cname(sels[i]);
                 SEL sel = sel_registerNameNoLock(name, isBundle);
-                if (sels[i] != sel) {
+        
+                if (sels[i] != sel) { // 修正 selector 的内存指向
                     sels[i] = sel;
+                    if (hi->mhdr()->filetype == MH_EXECUTE) {
+                             printf("mh_execute fix up sel: %s\n", sel);
+                         }
                 }
+     
             }
         }
     }
@@ -3373,8 +3398,11 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
         for (i = 0; i < count; i++) {
             Class cls = (Class)classlist[i];
-            Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
+            Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized); // 把类读入内存，但是不会进行 reliaze
 
+            if (hi->mhdr()->filetype == MH_EXECUTE) {
+                printf("mh_execute class List: %s\n", newCls->mangledName());
+            }
             if (newCls != cls  &&  newCls) {
                 // Class was moved but not deleted. Currently this occurs 
                 // only when the new class resolved a future class.
@@ -3393,7 +3421,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Class list and nonlazy class list remain unremapped.
     // Class refs and super refs are remapped for message dispatching.
     
-    if (!noClassesRemapped()) {
+    if (!noClassesRemapped()) {  // 不重要
         for (EACH_HEADER) {
             Class *classrefs = _getObjc2ClassRefs(hi, &count);
             for (i = 0; i < count; i++) {
@@ -3434,7 +3462,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         extern objc_class OBJC_CLASS_$_Protocol;
         Class cls = (Class)&OBJC_CLASS_$_Protocol;
         ASSERT(cls);
-        NXMapTable *protocol_map = protocols();
+        NXMapTable *protocol_map = protocols(); // 协议列表
         bool isPreoptimized = hi->hasPreoptimizedProtocols();
 
         // Skip reading protocols if this is an image from the shared cache
@@ -3457,6 +3485,9 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         for (i = 0; i < count; i++) {
             readProtocol(protolist[i], cls, protocol_map, 
                          isPreoptimized, isBundle);
+            if (hi->mhdr()->filetype == MH_EXECUTE) {
+                printf("mh_execute protocollist: %s\n", protolist[i]->mangledName);
+            }
         }
     }
 
@@ -3474,6 +3505,10 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
             continue;
         protocol_t **protolist = _getObjc2ProtocolRefs(hi, &count);
         for (i = 0; i < count; i++) {
+//            printf("protocol ref: %s\n", protolist[i]->mangledName);
+            if (hi->mhdr()->filetype == MH_EXECUTE) {
+                printf("mh_execute protocol ref: %s\n", protolist[i]->mangledName);
+            }
             remapProtocolRef(&protolist[i]);
         }
     }
@@ -3489,7 +3524,9 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
                 category_t *cat = catlist[i];
                 Class cls = remapClass(cat->cls);
                 locstamped_category_t lc{cat, hi};
-                
+                if (hi->mhdr()->filetype == MH_EXECUTE) {
+                     printf("mh_execute category_t: %s\n", cat->name);
+                 }
                 if (!cls) {
                     // Category's target class is missing (probably weak-linked).
                     // Ignore the category.
@@ -3544,6 +3581,8 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
                 }
             }
         };
+        
+        // 处理 category list
         processCatlist(_getObjc2CategoryList(hi, &count));
         processCatlist(_getObjc2CategoryList2(hi, &count));
     }
@@ -3555,7 +3594,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // this thread finishes its fixups.
 
     // +load handled by prepare_load_methods()
-
+    // 加载有 load 方法的类。
     // Realize non-lazy classes (for +load methods and static instances)
     for (EACH_HEADER) {
         classref_t const *classlist = 
@@ -3563,7 +3602,9 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         for (i = 0; i < count; i++) {
             Class cls = remapClass(classlist[i]);
             if (!cls) continue;
-
+            if (hi->mhdr()->filetype == MH_EXECUTE) {
+                printf("mh_execute no-lazy class list: %s\n", cls->mangledName());
+            }
             addClassTableEntry(cls);
 
             if (cls->isSwiftStable()) {
@@ -3680,6 +3721,7 @@ static void schedule_class_load(Class cls)
     if (cls->data()->flags & RW_LOADED) return;
 
     // Ensure superclass-first ordering
+    // 确保父类的 load 方法先被添加
     schedule_class_load(cls->superclass);
 
     add_class_to_loadable_list(cls);
@@ -3716,7 +3758,7 @@ void prepare_load_methods(const headerType *mhdr)
             _objc_fatal("Swift class extensions and categories on Swift "
                         "classes are not allowed to have +load methods");
         }
-        realizeClassWithoutSwift(cls, nil);
+        realizeClassWithoutSwift(cls, nil); // 可能是非lazy 的 class 的 Category，需要先对主类 realized 一下
         ASSERT(cls->ISA()->isRealized());
         add_category_to_loadable_list(cat);
     }
@@ -5103,7 +5145,7 @@ class_copyIvarList(Class cls, unsigned int *outCount)
             if (!ivar.offset) continue;  // anonymous bitfield
             result[count++] = &ivar;
         }
-        result[count] = nil;
+        result[count] = nil; // 高级数组的最后一位填上 nil，防止越界访问奔溃
     }
     
     if (outCount) *outCount = count;
@@ -5639,15 +5681,18 @@ findMethodInSortedMethodList(SEL key, const method_list_t *list)
     uintptr_t keyValue = (uintptr_t)key;
     uint32_t count;
     
+    // 二分查找
     for (count = list->count; count != 0; count >>= 1) {
         probe = base + (count >> 1);
         
+        // 同一个类/分类中理论上是不会存在相同的方法的
         uintptr_t probeValue = (uintptr_t)probe->name;
         
         if (keyValue == probeValue) {
             // `probe` is a match.
             // Rewind looking for the *first* occurrence of this value.
             // This is required for correct category overrides.
+            // Smallfly: 什么情况会发生？？
             while (probe > first && keyValue == (uintptr_t)probe[-1].name) {
                 probe--;
             }
@@ -5670,8 +5715,10 @@ search_method_list_inline(const method_list_t *mlist, SEL sel)
     int methodListHasExpectedSize = mlist->entsize() == sizeof(method_t);
     
     if (fastpath(methodListIsFixedUp && methodListHasExpectedSize)) {
+        // 如果方法名列表是排序过的，使用二分查找
         return findMethodInSortedMethodList(sel, mlist);
     } else {
+        // 否则线性查找
         // Linear search of unsorted method list
         for (auto& meth : *mlist) {
             if (meth.name == sel) return &meth;
@@ -5892,11 +5939,11 @@ static void resolveInstanceMethod(id inst, SEL sel, Class cls)
     }
 
     BOOL (*msg)(Class, SEL, SEL) = (typeof(msg))objc_msgSend;
-    bool resolved = msg(cls, resolve_sel, sel);
+    bool resolved = msg(cls, resolve_sel, sel); // 调用 resolve 添加方法实现
 
     // Cache the result (good or bad) so the resolver doesn't fire next time.
     // +resolveInstanceMethod adds to self a.k.a. cls
-    IMP imp = lookUpImpOrNil(inst, sel, cls);
+    IMP imp = lookUpImpOrNil(inst, sel, cls); // 查找新添加的方法实现，顺带缓存
 
     if (resolved  &&  PrintResolving) {
         if (imp) {
@@ -5938,13 +5985,14 @@ resolveMethod_locked(id inst, SEL sel, Class cls, int behavior)
     } 
     else {
         // try [nonMetaClass resolveClassMethod:sel]
-        // and [cls resolveInstanceMethod:sel]
+        // and [cls resolveInstanceMethod:sel] // 为啥？？？怎么会是实例方法呢
         resolveClassMethod(inst, sel, cls);
         if (!lookUpImpOrNil(inst, sel, cls)) {
             resolveInstanceMethod(inst, sel, cls);
         }
     }
 
+    // 已经 resolve 尝试重新走一次查找，这次有了 LOOKUP_CACHE 标志。
     // chances are that calling the resolver have populated the cache
     // so attempt using it
     return lookUpImpOrForward(inst, sel, cls, behavior | LOOKUP_CACHE);
@@ -6018,7 +6066,7 @@ IMP lookUpImpOrForward(id inst, SEL sel, Class cls, int behavior)
     // objc_duplicateClass, objc_initializeClassPair or objc_allocateClassPair.
     //
     // TODO: this check is quite costly during process startup.
-    checkIsKnownClass(cls);
+    checkIsKnownClass(cls);  // 出于类的安全性考虑的检查，自定义创建的 class 存在安全隐患
 
     if (slowpath(!cls->isRealized())) {
         cls = realizeClassMaybeSwiftAndLeaveLocked(cls, runtimeLock);
@@ -6045,7 +6093,7 @@ IMP lookUpImpOrForward(id inst, SEL sel, Class cls, int behavior)
     // The only codepath calling into this without having performed some
     // kind of cache lookup is class_getInstanceMethod().
 
-    for (unsigned attempts = unreasonableClassCount();;) {
+    for (unsigned attempts = unreasonableClassCount();;) { // 所有 class 的数量？
         // curClass method list.
         Method meth = getMethodNoSuper_nolock(curClass, sel);
         if (meth) {
@@ -6071,6 +6119,8 @@ IMP lookUpImpOrForward(id inst, SEL sel, Class cls, int behavior)
             // Found a forward:: entry in a superclass.
             // Stop searching, but don't cache yet; call method
             // resolver for this class first.
+            // 不对父类中找到的转发 imp 进行缓存，因为后面可能会通过 resolver 动态添加方法
+            // 所以这里缓存了也白缓存。
             break;
         }
         if (fastpath(imp)) {
@@ -6264,7 +6314,7 @@ void objc_class::chooseClassArrayIndex()
     unsigned index = objc_indexed_classes_count++;
     if (index == 0) index = objc_indexed_classes_count++;  // index 0 is unused
     classForIndex(index) = cls;
-    cls->setClassArrayIndex(index);
+    cls->setClassArrayIndex(index); // 这个 index 到底是干嘛的？
 #endif
 }
 
@@ -6675,7 +6725,7 @@ class_addIvar(Class cls, const char *name, size_t size,
 
     // Check for existing ivar with this name, unless it's anonymous.
     // Check for too-big ivar.
-    // fixme check for superclass ivar too?
+    // fixme check for superclass ivar too? // 没有检查父类？
     if ((name  &&  getIvar(cls, name))  ||  size > UINT32_MAX) {
         return NO;
     }
@@ -6707,7 +6757,7 @@ class_addIvar(Class cls, const char *name, size_t size,
 #else
     ivar.offset = (int32_t *)malloc(sizeof(int32_t));
 #endif
-    *ivar.offset = offset;
+    *ivar.offset = offset; // 偏移要算上父类的实例变量大小
     ivar.name = name ? strdupIfMutable(name) : nil;
     ivar.type = strdupIfMutable(type);
     ivar.alignment_raw = alignment;
@@ -7000,13 +7050,14 @@ static void objc_initializeClassPair_internal(Class superclass, const char *name
     if (superclass) {
         uint32_t flagsToCopy = RW_FORBIDS_ASSOCIATED_OBJECTS;
         cls->data()->flags |= superclass->data()->flags & flagsToCopy;
-        cls_ro_w->instanceStart = superclass->unalignedInstanceSize();
+        cls_ro_w->instanceStart = superclass->unalignedInstanceSize(); // Smallfly: 子类实例变量是布局在父类实例变量后面的，为什么是父类未对齐的？因为本类可能也是未对齐的，两个未对齐合在一起可能就对齐了，这也是使用父类未对齐的原因。为什么类要对齐呢？希望能利用 CPU 缓存，CPU 加载数据的最小颗粒度是？，没有对齐的类，可能一部分在 CPU 缓存中，一部分在内存中，这势必会影响效率。现代的 CPU 缓存可分为三级，分别是 L1/L2/L3，L1 主要作为指令或者数据缓存，L2/L3 缓存不区分指令还是数据。L1 和 L2 在每个 CPU 核中，L3 缓存所有核心共享。为什么要设计多级 CPU 缓存？相同的器件存储大小是由晶体管数量决定的，晶体管越多内存越大，但是比会导致传输速度降低。并且晶体管多也会增加 CPU 的大小。既要速度，又要平衡容量，最好的办法是使用多级缓存。
         meta_ro_w->instanceStart = superclass->ISA()->unalignedInstanceSize();
+        // 元类为什么会有实例变量信息？，NSObject metaclass 的实例变量大小是 40byte，为什么呢？子类的实例变量以父类的size开头
         cls->setInstanceSize(cls_ro_w->instanceStart);
         meta->setInstanceSize(meta_ro_w->instanceStart);
     } else {
         cls_ro_w->instanceStart = 0;
-        meta_ro_w->instanceStart = (uint32_t)sizeof(objc_class);
+        meta_ro_w->instanceStart = (uint32_t)sizeof(objc_class); // 指向自己？？
         cls->setInstanceSize((uint32_t)sizeof(id));  // just an isa
         meta->setInstanceSize(meta_ro_w->instanceStart);
     }
@@ -7034,7 +7085,7 @@ static void objc_initializeClassPair_internal(Class superclass, const char *name
     cls->initClassIsa(meta);
 
     if (superclass) {
-        meta->initClassIsa(superclass->ISA()->ISA());
+        meta->initClassIsa(superclass->ISA()->ISA()); // 所有 metaclass 的 isa 都指向 nsobjct metaclass
         cls->superclass = superclass;
         meta->superclass = superclass->ISA();
         addSubclass(superclass, cls);

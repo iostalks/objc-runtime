@@ -2363,7 +2363,7 @@ __attribute__((objc_nonlazy_class))
 }
 
 - (id)copy {
-    return [(id)self copyWithZone:nil];
+    return [(id)self copyWithZone:nil]; // 默认 copy 的是指针，copy 返回了当前的 class 不分配内存了？？
 }
 
 + (id)mutableCopy {

@@ -901,7 +901,7 @@ class DisguisedPtr {
     uintptr_t value;
 
     static uintptr_t disguise(T* ptr) {
-        return -(uintptr_t)ptr;
+        return -(uintptr_t)ptr; // 为什么取补码
     }
 
     static T* undisguise(uintptr_t val) {

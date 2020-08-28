@@ -222,12 +222,13 @@ bool bad_magic(const headerType *mhdr)
 static header_info * addHeader(const headerType *mhdr, const char *path, int &totalClasses, int &unoptimizedTotalClasses)
 {
     header_info *hi;
-
+    // mach o header 是否符合条件
     if (bad_magic(mhdr)) return NULL;
 
     bool inSharedCache = false;
 
     // Look for hinfo from the dyld shared cache.
+    // 查看是否有 dyld 对 header info 的缓存，暂不考虑
     hi = preoptimizedHinfoForHeader(mhdr);
     if (hi) {
         // Found an hinfo in the dyld shared cache.
@@ -264,6 +265,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
         // Locate the __OBJC segment
         size_t info_size = 0;
         unsigned long seg_size;
+        // 从 mach-o 文件中读取 image info, 可执行文件的类型为 64
         const objc_image_info *image_info = _getObjcImageInfo(mhdr,&info_size);
         const uint8_t *objc_segment = getsegmentdata(mhdr,SEG_OBJC,&seg_size);
         if (!objc_segment  &&  !image_info) return NULL;
@@ -291,7 +293,7 @@ static header_info * addHeader(const headerType *mhdr, const char *path, int &to
 #if __OBJC2__
     {
         size_t count = 0;
-        if (_getObjc2ClassList(hi, &count)) {
+        if (_getObjc2ClassList(hi, &count)) { // 获取 objc 类列表
             totalClasses += (int)count;
             if (!inSharedCache) unoptimizedTotalClasses += count;
         }
@@ -451,13 +453,14 @@ void objc_addLoadImageFunc(objc_func_loadImage _Nonnull func) {
 #include "objc-file-old.h"
 #endif
 
+// 该方法只会进来一次
 void 
 map_images_nolock(unsigned mhCount, const char * const mhPaths[],
                   const struct mach_header * const mhdrs[])
 {
     static bool firstTime = YES;
-    header_info *hList[mhCount];
-    uint32_t hCount;
+    header_info *hList[mhCount]; /// mach-o header list
+    uint32_t hCount; /// mach-o count
     size_t selrefCount = 0;
 
     // Perform first-time initialization if necessary.
@@ -476,26 +479,29 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     hCount = 0;
 
     // Count classes. Size various table based on the total.
-    int totalClasses = 0;
+    int totalClasses = 0; // 找出所有的 ObjC 类
     int unoptimizedTotalClasses = 0;
     {
         uint32_t i = mhCount;
         while (i--) {
             const headerType *mhdr = (const headerType *)mhdrs[i];
 
+            // 会以链表的形式存储所有的 mach-o header
             auto hi = addHeader(mhdr, mhPaths[i], totalClasses, unoptimizedTotalClasses);
             if (!hi) {
+                // 没有 objc 相关的数据，直接返回
                 // no objc data in this entry
                 continue;
             }
+            printf("%d has objc lib: %s\n",i ,mhPaths[i]);
             
-            if (mhdr->filetype == MH_EXECUTE) {
+            if (mhdr->filetype == MH_EXECUTE) { // 读取可执行文件所有的 objc sel
                 // Size some data structures based on main executable's size
 #if __OBJC2__
                 size_t count;
-                _getObjc2SelectorRefs(hi, &count);
+                _getObjc2SelectorRefs(hi, &count); // 读取所有的 sel
                 selrefCount += count;
-                _getObjc2MessageRefs(hi, &count);
+                _getObjc2MessageRefs(hi, &count); // 读取所有的 msg，如何生成这个 msg？
                 selrefCount += count;
 #else
                 _getObjcSelectorRefs(hi, &selrefCount);
@@ -540,6 +546,8 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
         // Reject any GC images linked to the main executable.
         // We already rejected the app itself above.
         // Images loaded after launch will be rejected by dyld.
+        
+        // 可忽略
 
         for (uint32_t i = 0; i < hCount; i++) {
             auto hi = hList[i];
@@ -555,6 +563,7 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
 #endif
 
 #if TARGET_OS_OSX
+        // 兼容问题可忽略
         // Disable +initialize fork safety if the app is too old (< 10.13).
         // Disable +initialize fork safety if the app has a
         //   __DATA,__objc_fork_ok section.
@@ -589,12 +598,15 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     }
 
     if (hCount > 0) {
+        // 关键，加载 ObjC 信息
         _read_images(hList, hCount, totalClasses, unoptimizedTotalClasses);
     }
 
     firstTime = NO;
     
     // Call image load funcs after everything is set up.
+    // 在 iOS 13 之后支持在 map images 的时候，注册通知 objc_addLoadImageFunc
+    // 没有能早于这段代码的地方注册，不过在 map 结束之后，注册监听，监听方法会立刻得到执行的
     for (auto func : loadImageFuncs) {
         for (uint32_t i = 0; i < mhCount; i++) {
             func(mhdrs[i]);

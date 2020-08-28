@@ -113,6 +113,7 @@ static void append_referrer(weak_entry_t *entry, objc_object **new_referrer)
 {
     if (! entry->out_of_line()) {
         // Try to insert inline.
+        // 4 个弱引用指针
         for (size_t i = 0; i < WEAK_INLINE_COUNT; i++) {
             if (entry->inline_referrers[i] == nil) {
                 entry->inline_referrers[i] = new_referrer;
@@ -142,7 +143,7 @@ static void append_referrer(weak_entry_t *entry, objc_object **new_referrer)
     }
     size_t begin = w_hash_pointer(new_referrer) & (entry->mask);
     size_t index = begin;
-    size_t hash_displacement = 0;
+    size_t hash_displacement = 0; // hash 位移，即冲突
     while (entry->referrers[index] != nil) {
         hash_displacement++;
         index = (index+1) & entry->mask;
@@ -152,7 +153,7 @@ static void append_referrer(weak_entry_t *entry, objc_object **new_referrer)
         entry->max_hash_displacement = hash_displacement;
     }
     weak_referrer_t &ref = entry->referrers[index];
-    ref = new_referrer;
+    ref = new_referrer; // 存储 new_referrer
     entry->num_refs++;
 }
 
@@ -183,6 +184,7 @@ static void remove_referrer(weak_entry_t *entry, objc_object **old_referrer)
         return;
     }
 
+    // 删除的时候并没有进行收缩容量的操作。弱引用不仅消耗内存，还消耗 CPU
     size_t begin = w_hash_pointer(old_referrer) & (entry->mask);
     size_t index = begin;
     size_t hash_displacement = 0;
@@ -200,7 +202,7 @@ static void remove_referrer(weak_entry_t *entry, objc_object **old_referrer)
             return;
         }
     }
-    entry->referrers[index] = nil;
+    entry->referrers[index] = nil; // 往指针地址上设置值 nil。实际上指针地址还存储着的。
     entry->num_refs--;
 }
 
@@ -217,7 +219,7 @@ static void weak_entry_insert(weak_table_t *weak_table, weak_entry_t *new_entry)
     size_t index = begin;
     size_t hash_displacement = 0;
     while (weak_entries[index].referent != nil) {
-        index = (index+1) & weak_table->mask;
+        index = (index+1) & weak_table->mask; // 哈希冲突，存在下一位
         if (index == begin) bad_weak_table(weak_entries);
         hash_displacement++;
     }
@@ -230,7 +232,7 @@ static void weak_entry_insert(weak_table_t *weak_table, weak_entry_t *new_entry)
     }
 }
 
-
+// weak 哈希表扩容
 static void weak_resize(weak_table_t *weak_table, size_t new_size)
 {
     size_t old_size = TABLE_SIZE(weak_table);
@@ -317,8 +319,8 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
     size_t begin = hash_pointer(referent) & weak_table->mask;
     size_t index = begin;
     size_t hash_displacement = 0;
-    while (weak_table->weak_entries[index].referent != referent) {
-        index = (index+1) & weak_table->mask;
+    while (weak_table->weak_entries[index].referent != referent) { // 哈希冲突
+        index = (index+1) & weak_table->mask; // 开放寻址法
         if (index == begin) bad_weak_table(weak_table->weak_entries);
         hash_displacement++;
         if (hash_displacement > weak_table->max_hash_displacement) {

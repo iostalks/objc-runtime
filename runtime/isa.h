@@ -88,6 +88,18 @@
 #   define RC_ONE   (1ULL<<56)
 #   define RC_HALF  (1ULL<<7)
 
+/**
+ uintptr_t nonpointer        : 1; // isa_t 的类型，0：普通指针，1：非指针而是结构体
+ uintptr_t has_assoc         : 1; // 是否有关联对象
+ uintptr_t has_cxx_dtor      : 1; // 是否有 cpp 析构器，默认没有，为什么没有被释放？
+ uintptr_t shiftcls          : 44;// 类的指针，虚拟地址
+ uintptr_t magic             : 6; // 0x3b 是否是已经初始化的对象
+ uintptr_t weakly_referenced : 1;
+ uintptr_t deallocating      : 1;
+ uintptr_t has_sidetable_rc  : 1;
+ uintptr_t extra_rc          : 8
+ */
+
 # else
 #   error unknown architecture for packed isa
 # endif

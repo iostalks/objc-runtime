@@ -1,0 +1,6 @@
+framework module AAAA {
+  umbrella header "AAAA.h"
+
+  export *
+  module * { export * }
+}

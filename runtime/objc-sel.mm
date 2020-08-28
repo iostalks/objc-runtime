@@ -33,7 +33,7 @@ static bool useDyldSelectorLookup = false;
 #endif
 
 
-static objc::ExplicitInitDenseSet<const char *> namedSelectors;
+static objc::ExplicitInitDenseSet<const char *> namedSelectors; // 全局 sel set
 static SEL search_builtins(const char *key);
 
 
@@ -47,7 +47,7 @@ void sel_init(size_t selrefCount)
     // If dyld finds a known shared cache selector, then it must be also looking
     // in the shared cache table.
     if (_dyld_get_objc_selector("retain") != nil)
-        useDyldSelectorLookup = true;
+        useDyldSelectorLookup = true; // 走这里
     else
         builtins = preoptimizedSelectors();
 

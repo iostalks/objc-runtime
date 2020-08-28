@@ -86,7 +86,7 @@ public:
 
     inline void retainReturnedValue() {
         if (_value && (_policy & OBJC_ASSOCIATION_GETTER_RETAIN)) {
-            objc_retain(_value);
+            objc_retain(_value); // 返回的时候 retain 一次，说明外部使这个对象的引用计数加一了，那它是什么时候被释放的呢？
         }
     }
 

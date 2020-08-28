@@ -185,6 +185,10 @@
 		83F550E0155E030800E95D3B /* objc-cache-old.mm in Sources */ = {isa = PBXBuildFile; fileRef = 83F550DF155E030800E95D3B /* objc-cache-old.mm */; };
 		87BB4EA70EC39854005D08E1 /* objc-probes.d in Sources */ = {isa = PBXBuildFile; fileRef = 87BB4E900EC39633005D08E1 /* objc-probes.d */; };
 		9672F7EE14D5F488007CEC96 /* NSObject.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9672F7ED14D5F488007CEC96 /* NSObject.mm */; };
+		AE02F91824E6916C00737A3B /* AAAA.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AE02F91324E68E2F00737A3B /* AAAA.framework */; };
+		AE02F91924E6916C00737A3B /* AAAA.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AE02F91324E68E2F00737A3B /* AAAA.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AE02F93624E691DF00737A3B /* BBBB.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AE02F93424E691DA00737A3B /* BBBB.framework */; };
+		AE02F93724E691DF00737A3B /* BBBB.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AE02F93424E691DA00737A3B /* BBBB.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E8923DA5116AB2820071B552 /* objc-block-trampolines.mm in Sources */ = {isa = PBXBuildFile; fileRef = E8923DA0116AB2820071B552 /* objc-block-trampolines.mm */; };
 		F9BCC71B205C68E800DD9AFC /* objc-blocktramps-arm64.s in Sources */ = {isa = PBXBuildFile; fileRef = 8379996D13CBAF6F007C2B5F /* objc-blocktramps-arm64.s */; };
 /* End PBXBuildFile section */
@@ -222,6 +226,18 @@
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
+		};
+		AE02F91A24E6916C00737A3B /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				AE02F93724E691DF00737A3B /* BBBB.framework in Embed Frameworks */,
+				AE02F91924E6916C00737A3B /* AAAA.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -384,6 +400,8 @@
 		83F550DF155E030800E95D3B /* objc-cache-old.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = "objc-cache-old.mm"; path = "runtime/objc-cache-old.mm"; sourceTree = "<group>"; };
 		87BB4E900EC39633005D08E1 /* objc-probes.d */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.dtrace; name = "objc-probes.d"; path = "runtime/objc-probes.d"; sourceTree = "<group>"; };
 		9672F7ED14D5F488007CEC96 /* NSObject.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = NSObject.mm; path = runtime/NSObject.mm; sourceTree = "<group>"; };
+		AE02F91324E68E2F00737A3B /* AAAA.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = AAAA.framework; sourceTree = "<group>"; };
+		AE02F93424E691DA00737A3B /* BBBB.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = BBBB.framework; sourceTree = "<group>"; };
 		BC8B5D1212D3D48100C78A5B /* libauto.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libauto.dylib; path = /usr/lib/libauto.dylib; sourceTree = "<absolute>"; };
 		D2AAC0630554660B00DB518D /* libobjc.A.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libobjc.A.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8923D9C116AB2820071B552 /* objc-blocktramps-i386.s */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; name = "objc-blocktramps-i386.s"; path = "runtime/objc-blocktramps-i386.s"; sourceTree = "<group>"; };
@@ -397,6 +415,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AE02F91824E6916C00737A3B /* AAAA.framework in Frameworks */,
+				AE02F93624E691DF00737A3B /* BBBB.framework in Frameworks */,
 				3044E27223D47C4F006763E3 /* libobjc.A.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -421,6 +441,8 @@
 		08FB7794FE84155DC02AAC07 /* objc */ = {
 			isa = PBXGroup;
 			children = (
+				AE02F93424E691DA00737A3B /* BBBB.framework */,
+				AE02F91324E68E2F00737A3B /* AAAA.framework */,
 				BC8B5D1212D3D48100C78A5B /* libauto.dylib */,
 				3044E1D323D4626F006763E3 /* include */,
 				838485C60D6D687700CEA253 /* Public Headers */,
@@ -915,6 +937,7 @@
 				3044E26523D47C0E006763E3 /* Sources */,
 				3044E26623D47C0E006763E3 /* Frameworks */,
 				3044E26723D47C0E006763E3 /* CopyFiles */,
+				AE02F91A24E6916C00737A3B /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -969,12 +992,11 @@
 		08FB7793FE84155DC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = NO;
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					3044E26823D47C0E006763E3 = {
 						CreatedOnToolsVersion = 11.3;
-						DevelopmentTeam = LY6BSMT7G9;
+						DevelopmentTeam = CV662426PA;
 						ProvisioningStyle = Automatic;
 					};
 					834F9B01212E560100F95A54 = {
@@ -1460,8 +1482,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = LY6BSMT7G9;
+				DEVELOPMENT_TEAM = CV662426PA;
 				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -1493,9 +1519,13 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = LY6BSMT7G9;
+				DEVELOPMENT_TEAM = CV662426PA;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;

@@ -171,7 +171,7 @@ objc_object::ISA()
     }
     return (Class)isa.bits;
 #else
-    return (Class)(isa.bits & ISA_MASK);
+    return (Class)(isa.bits & ISA_MASK);  // Class 的 isa 指针的 ISA_MASK 位，存储的是它元类的的地址。Object isa 中的 ISA_MASK 存储的是它 Class 的地址。meta Class 的 isa 中 ISA_MASK 位存储的是 NSObject meta 的指针地址。
 #endif
 }
 
@@ -241,8 +241,9 @@ objc_object::initIsa(Class cls, bool nonpointer, bool hasCxxDtor)
         newisa.has_cxx_dtor = hasCxxDtor;
         newisa.indexcls = (uintptr_t)cls->classArrayIndex();
 #else
+        // 对象走这里
         newisa.bits = ISA_MAGIC_VALUE;
-        // isa.magic is part of ISA_MAGIC_VALUE
+        // isa.magic is part of ISA_MAGIC_VALUE, 表示对象已经初始化。
         // isa.nonpointer is part of ISA_MAGIC_VALUE
         newisa.has_cxx_dtor = hasCxxDtor;
         newisa.shiftcls = (uintptr_t)cls >> 3;
@@ -527,7 +528,7 @@ objc_object::rootRetain(bool tryRetain, bool handleOverflow)
             if (!tryRetain && !sideTableLocked) sidetable_lock();
             sideTableLocked = true;
             transcribeToSideTable = true;
-            newisa.extra_rc = RC_HALF;
+            newisa.extra_rc = RC_HALF; // 引用计数减半，另一半存入哈希表
             newisa.has_sidetable_rc = true;
         }
     } while (slowpath(!StoreExclusive(&isa.bits, oldisa.bits, newisa.bits)));

@@ -658,7 +658,7 @@ void cache_t::insert(Class cls, SEL sel, IMP imp, id receiver)
     mask_t newOccupied = occupied() + 1;
     unsigned oldCapacity = capacity(), capacity = oldCapacity;
     if (slowpath(isConstantEmptyCache())) {
-        // Cache is read-only. Replace it.
+        // Cache is read-only. Replace it. 初始大小 4
         if (!capacity) capacity = INIT_CACHE_SIZE;
         reallocate(oldCapacity, capacity, /* freeOld */false);
     }
@@ -666,6 +666,7 @@ void cache_t::insert(Class cls, SEL sel, IMP imp, id receiver)
         // Cache is less than 3/4 full. Use it as-is.
     }
     else {
+        // 当缓存翻倍时，会直接清理旧的缓存，不会进行搬移
         capacity = capacity ? capacity * 2 : INIT_CACHE_SIZE;
         if (capacity > MAX_CACHE_SIZE) {
             capacity = MAX_CACHE_SIZE;
@@ -678,6 +679,7 @@ void cache_t::insert(Class cls, SEL sel, IMP imp, id receiver)
     mask_t begin = cache_hash(sel, m);
     mask_t i = begin;
 
+    // 线性探测
     // Scan for the first unused slot and insert there.
     // There is guaranteed to be an empty slot because the
     // minimum size is 4 and we resized at 3/4 full.

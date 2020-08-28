@@ -139,7 +139,7 @@
 //   FAST_CACHE_ALLOC_MASK16 allows to extract the instance size rounded
 //   rounded up to the next 16 byte boundary, which is a fastpath for
 //   _objc_rootAllocWithZone()
-#define FAST_CACHE_ALLOC_MASK         0x1ff8
+#define FAST_CACHE_ALLOC_MASK         0x1ff8 // 这些位置是用来存储实例变量的大小的，但是为什么要加ALLOC_DELTA16，以及为什么要以内存对齐的方式存储？
 #define FAST_CACHE_ALLOC_MASK16       0x1ff0
 #define FAST_CACHE_ALLOC_DELTA16      0x0008
 
@@ -352,7 +352,7 @@ public:
     }
 
     void setFastInstanceSize(size_t newSize)
-    {
+    { // 存储实例变量的大小
         // Set during realization or construction only. No locking needed.
         uint16_t newBits = _flags & ~FAST_CACHE_ALLOC_MASK;
         uint16_t sizeBits;
@@ -698,14 +698,14 @@ struct class_ro_t {
     uint32_t reserved;
 #endif
 
-    const uint8_t * ivarLayout;
+    const uint8_t * ivarLayout; // 实例变量真正存储的位置？？不对的
     
-    const char * name;
+    const char * name; // 类名
     method_list_t * baseMethodList;
     protocol_list_t * baseProtocols;
-    const ivar_list_t * ivars;
+    const ivar_list_t * ivars; // ivar_list_t 是一个指针，运行时理论上是可以修改的。
 
-    const uint8_t * weakIvarLayout;
+    const uint8_t * weakIvarLayout; // 弱实例变量？如何写入
     property_list_t *baseProperties;
 
     // This field exists only when RO_HAS_SWIFT_INITIALIZER is set.
@@ -907,6 +907,7 @@ class list_array_tt {
             setArray((array_t *)malloc(array_t::byteSize(newCount)));
             array()->count = newCount;
             if (oldList) array()->lists[addedCount] = oldList;
+            // 头部插入新的 many lists
             memcpy(array()->lists, addedLists, 
                    addedCount * sizeof(array()->lists[0]));
         }
@@ -989,7 +990,7 @@ class protocol_array_t :
 
 struct class_rw_t {
     // Be warned that Symbolication knows the layout of this structure.
-    uint32_t flags;
+    uint32_t flags; // 第 31 位表示已经 realize 标志
     uint16_t version;
     uint16_t witness;
 
@@ -1000,9 +1001,9 @@ struct class_rw_t {
     protocol_array_t protocols;
 
     Class firstSubclass;
-    Class nextSiblingClass;
+    Class nextSiblingClass; // 用于构造 Class 之间的关系
 
-    char *demangledName;
+    char *demangledName; // 这个字段表示 class 的名称?
 
 #if SUPPORT_INDEXED_ISA
     uint32_t index;
@@ -1067,7 +1068,7 @@ private:
 public:
 
     class_rw_t* data() const {
-        return (class_rw_t *)(bits & FAST_DATA_MASK);
+        return (class_rw_t *)(bits & FAST_DATA_MASK); // 3~47 bit
     }
     void setData(class_rw_t *newData)
     {
@@ -1147,7 +1148,7 @@ struct objc_class : objc_object {
     Class superclass;
     cache_t cache;             // formerly cache pointer and vtable
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
-
+    // why uintptr_t bit 直接存这里，而是要用 class_data_bits_t 做一层封装？
     class_rw_t *data() const {
         return bits.data();
     }

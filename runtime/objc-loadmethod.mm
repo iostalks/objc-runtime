@@ -353,7 +353,7 @@ void call_load_methods(void)
             call_class_loads();
         }
 
-        // 2. Call category +loads ONCE
+        // 2. Call category +loads
         more_categories = call_category_loads();
 
         // 3. Run more +loads if there are classes OR more untried categories

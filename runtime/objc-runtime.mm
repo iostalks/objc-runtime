@@ -267,6 +267,7 @@ objc::SafeRanges::remove(uintptr_t start, uintptr_t end)
 /***********************************************************************
 * appendHeader.  Add a newly-constructed header_info to the list. 
 **********************************************************************/
+// 使用链表形式存储 image header info
 void appendHeader(header_info *hi)
 {
     // Add the header to the header list. 
